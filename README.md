@@ -1,12 +1,22 @@
 # cnn
 
-Proiectul reprezinta implementarea unei retele neurale convolutionale pentru recunoasterea cifrelor scrise de mana. 
-Este scris in limbajul C++; fisierul sursa este convnet.cpp; foloseste pentru antrenare si testare setul de date MNIST. 
-Momentan nu este complet. 
+The project is an implementation of a convolutional neural network for handwritten digit classification. 
 
-Reteaua neurala este implementata astfel: 
-Am folosit o clasa abstracta Layer - reprezinta un tip de layer (nivel) din retea - contine metodele: forward(), backProp() si updateWeights(). Din aceasta clasa am derivat apoi mai multe clase, care corespund diverselor tipuri de layere: de convolutie, de pooling, nivele complet conectate (fully connected layer), ReLU etc. Am separat nivelurile de convolutie si cele complet conectate, considerand nivelul ReLU ca un nivel separat, pentru simplitate, usurinta implementarii si modularitate. Desi se numeste ReLU, nivelul respectiv aplica de fapt functia sigmoid asupra intrarii. 
-Reteaua este alcatuita dintr-un vector de astfel de nivele. Fiecare nivel cate doua referinte, una pentru datele de intrare si cealalta pentru datele de iesire din nivel. 
-Un neuron este reprezentat printr-o structura continand valoarea neuronului si gradientul erorii delta. Datele sunt organizate fie intr-un vector unidimensional de astfel de structuri (clasa Data1D), fie in tablouri tri-dimensionale (clasa Data3D). 
-Pentru antrenarea retelei se aplica la intrarea acesteia imaginea de intrare, apoi se apeleaza succesiv pentru fiecare nivel din retea metoda forward(), apoi se compara iesirea cu valoarea reala si se propaga eroarea inapoi in retea, apelandu-se backProp() pentru fiecare nivel in ordine inversa. forward() modifica valorile neuronilor de iesire al nivelului, iar backProp() modifica gradientul erorii pentru neuronii de iesire. In final se apeleaza updateWeights() pentru toate nivelele (cele care au ponderi) si se actualizeaza valoarea ponderilor in functie de gradientul erorii, folosind metoda Gradient Descent. 
+The project is implemented in C++ programming language. It only has a source file named convnet.cpp. 
+
+When running the application, you may have to wait some time until the network is trained. After the training is done, the application will output the results of the network when different inputs (from either train or test data) are applied and the correct label. 
+
+The train-images.idx3-ubyte and train-labels.idx1-ubyte files must be in the same directory as the executable file. 
+
+The application can work in many modes, by modifying the value of different variables in the source file (will be detailed below). 
+
+
+The first lines in the source files contains some constants that can be modified to alter the behaviour of the network. 
+
+
+The goal of the convolutional neural network is to learn to correctly classify the handwritten digits in images; more precisely, given an image, it should identify the digit (from 0 to 9) written. 
+The convolutional neural network uses the MNIST dataset, which consists of 20000 images of handwritten digits, and the correct digit in each image. This data is divided into training data and test data: for speed up purposes, only NR_EXAMPLES_READ examples can be read from the database; a fraction of RATIO_TRAIN_TEST of the read examples is used for training, and the rest for test. 
+In the first stage, the network is trained using the training data; for a number of NR_EPOCHS iterations (epochs), each example is applied as input to the network, and the backpropagation algorithm is used to train the network based on the given correct answer (label) from the database. 
+In the test stage, each example is applied to the network and the output is observed and compared to the correct/desired output. First we test the network against the training examples, and then against the test examples. 
+
 
