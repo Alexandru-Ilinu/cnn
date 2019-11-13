@@ -9,17 +9,23 @@
 
 using namespace std; 
 
-const float learningRate = 1.2f; 
-const int NR_EXAMPLES_READ = 2000; 
+const float learningRate = 1.0f; 
+const int NR_EXAMPLES_READ = 100; 
 const int IMAGE_HEIGHT = 28; 
 const int IMAGE_WIDTH = 28; 
 const bool GRAYSCALE = true; 
 const int NR_CHANNELS = GRAYSCALE ? 1 : 3; 
+const int NR_EPOCHS = 100; 
+const float RATIO_TRAIN_TEST = 0.9; 
+
+enum Mode { TRAIN_AND_TEST, TRAIN, TRAIN_CONTINUE, TEST };
 
 struct Neuron
 {
 	float a; 
 	float delta; 
+	
+	Neuron() { a = 0; delta = 0; }
 }; 
 
 template<class T>
@@ -30,7 +36,7 @@ T ***init3DMatrix(int H, int W, int C)
 	for (i = 0; i < H; i++)
 	{
 		m[i] = new T *[W]; 
-		for (j = 0; j < H; j++)
+		for (j = 0; j < W; j++)
 		{
 			m[i][j] = new T[C]; 
 		}
@@ -53,10 +59,9 @@ void delete3DMatrix(T ***m, int H, int W, int C)
 	delete [] m; 
 }
 
-
 float genRandomWeight()
 {
-	return rand() / (float) RAND_MAX - 0.5; 
+	return (rand() / (float) RAND_MAX - 0.5); 
 }
 
 float sigmoidFunction(float x)
@@ -110,7 +115,6 @@ class Data1D : public Data
 	}
 }; 
 
-
 class Filter
 {
 	public:
@@ -160,7 +164,6 @@ class Layer
 		virtual void updateWeights() = 0; 
 }; 
 
-
 class ConvolutionalLayer : public Layer
 {
 	public:
@@ -187,12 +190,12 @@ class ConvolutionalLayer : public Layer
 	
 	~ConvolutionalLayer()
 	{
-		delete outputData; 
 		for (int i = 0; i < nrFilters; i++)
 		{
 			delete filters[i]; 
 		}
 		delete [] filters; 
+		delete outputData; 
 	}
 	
 	inline float getActivationPadding(int i, int j, int k)
@@ -329,7 +332,7 @@ class ConvolutionalLayer : public Layer
 				}
 			}
 			
-			// update bias for filter l, filters[i].bias
+			// update bias for filter l, filters[l].bias
 			s = 0; 
 			for (int i = 0; i < H; i++)
 			{
@@ -706,7 +709,6 @@ class Example
 	}
 }; 
 
-
 class DataSet
 {
 	public:
@@ -795,7 +797,7 @@ void labelToVector(int label, float *a, int nrLabels)
 
 int vectorToLabel(float *v, int nrLabels)
 {
-	int max = v[0], imax = 0; 
+	float max = v[0], imax = 0; 
 	for (int i = 1; i < nrLabels; i++)
 	{
 		if (v[i] > max)
@@ -806,6 +808,7 @@ int vectorToLabel(float *v, int nrLabels)
 	}
 	return imax; 
 }
+
 
 class ConvolutionalNeuralNetwork
 {
@@ -968,10 +971,9 @@ class ConvolutionalNeuralNetwork
 				{					
 					ridx = randIndices[trEx]; 
 					forward(dataset->examples[ridx]->pixels); 
-					labelToVector(dataset->examples[ridx]->labelId, targetOutput, nrClasses); 
+					labelToVector(dataset->examples[ridx]->labelId, targetOutput, nrClasses); 		
 					backProp(targetOutput); 
 					updateWeights(); 
-					
 				}
 			}
 			
@@ -984,12 +986,34 @@ class ConvolutionalNeuralNetwork
 			int outputLabel; 
 			float *networkOutput = new float[nrClasses]; 
 			
-			for (int i = nrTrainingExamples; i < dataset->nrExamples; i++)
+			cout << "Training data: --------------------------------------------" << endl; 
+			for (int i = 0; i < dataset->nrExamples; i++)
 			{
-				// verific pentru exemplul i
+				if (i == nrTrainingExamples)
+				{
+					cout << "Test data: ----------------------------" << endl; 
+				}
+
 				forward(dataset->examples[i]->pixels); 
 				getOutput(networkOutput); 
 				outputLabel = vectorToLabel(networkOutput, nrClasses); 
+				
+				cout << "Example nr. " << i << endl; 
+				cout << "True label: " << dataset->examples[i]->labelId << endl; 
+				cout << "Network's output" << endl << "for digit: \t"; 
+				for (int j = 0; j < nrClasses; j++)
+				{
+					printf("%d\t", j); 
+				}
+				cout << endl; 
+				
+				cout << "\t\t"; 
+				for (int j = 0; j < nrClasses; j++)
+				{
+					printf("%.3f \t", networkOutput[j]); 
+				}
+				cout << endl; 
+				
 				if (outputLabel == dataset->examples[i]->labelId)
 				{
 					cout << "GUESSED" << endl; 
@@ -998,99 +1022,110 @@ class ConvolutionalNeuralNetwork
 				{
 					cout << "NOT GUESSED" << endl; 
 				}
+				cout << endl; 
+
 			}
 			
 			delete [] networkOutput; 
 		}
 		
-		void debugWeights()
+		void writeConvolutionalLayerToFile(int layerId, ofstream &outfile)
 		{
-			for (int l = 1; l < 5; l += 3)
+			ConvolutionalLayer *cl = (ConvolutionalLayer *) layers[layerId]; 
+			for (int filterId = 0; filterId < cl->nrFilters; filterId++)
 			{
-				ConvolutionalLayer *layer0 = (ConvolutionalLayer *) layers[l]; 
-
-				cout << "convolutional layer nr. " << l << endl; 
-				
-				for (int i = 0; i < layer0->nrFilters; i++)
+				Filter *filter = cl->filters[filterId]; 
+				outfile << filter->bias << endl; 
+				for (int i = 0; i < 2 * filter->H + 1; i++)
 				{
-					cout << "filter nr " << i << endl; 
-					
-					for (int kk = 0; kk < layer0->filters[i]->C; kk++)
+					for (int j = 0; j < 2 * filter->W + 1; j++)
 					{
-						for (int ii = 0; ii < 2 * layer0->filters[i]->H + 1; ii++)
+						for (int k = 0; k < filter->C; k++)
 						{
-							for (int jj = 0; jj < 2 * layer0->filters[i]->W + 1; jj++)
-							{
-								cout << layer0->filters[i]->weights[ii][jj][kk] << " "; 
-							}
-							cout << endl; 
+							outfile << filter->weights[i][j][k] << " "; 
 						}
-						cout << endl; 
+						outfile << "  \t  "; 
 					}
-					cout << "bias: " << layer0->filters[i]->bias << endl; 
+					outfile << endl; 
+				}
+				
+				outfile << endl; 
+			}
+		}
+		
+		void writeFullyConnectedLayerToFile(int layerId, ofstream &outfile)
+		{
+			FullyConnectedLayer *layer = (FullyConnectedLayer *) layers[layerId]; 
+			for (int i = 0; i < layer->nrNeurOut; i++)
+			{
+				outfile << layer->biases[i] << endl; 
+				for (int j = 0; j < layer->nrNeurIn; j++)
+				{
+					outfile << layer->weights[i][j] << " "; 
+				}
+				outfile << endl; 
+			}
+		}
+		
+		void writeToFile(const char *filename)
+		{
+			ofstream outfile; 
+			outfile.open(filename, ios_base::out); 
+			
+			writeConvolutionalLayerToFile(1, outfile); 
+			writeConvolutionalLayerToFile(4, outfile); 
+			writeFullyConnectedLayerToFile(8, outfile); 
+			writeFullyConnectedLayerToFile(10, outfile); 
+			
+			outfile.close(); 
+		}
+		
+		void readConvolutionalLayerFromFile(int layerId, ifstream &infile)
+		{
+			ConvolutionalLayer *cl = (ConvolutionalLayer *) layers[layerId]; 
+			
+			for (int filterId = 0; filterId < cl->nrFilters; filterId++)
+			{
+				Filter *filter = cl->filters[filterId]; 
+				infile >> filter->bias; 
+				for (int i = 0; i < 2 * filter->H + 1; i++)
+				{
+					for (int j = 0; j < 2 * filter->W + 1; j++)
+					{
+						for (int k = 0; k < filter->C; k++)
+						{
+							infile >> filter->weights[i][j][k]; 
+						}
+					}
 				}
 			}
 		}
 		
-		void debug()
+		void readFullyConnectedLayerFromFile(int layerId, ifstream &infile)
 		{
-			for (int l = 0; l < 7; l++)
-			{
-				cout << "level " << l << endl; 
-				Data3D data0 = *((Data3D *) data[l]); 
-				cout << data0.H << " " << data0.W << " " << data0.C << endl; 
-				
-				cout << "activations: " << endl; 
-				for (int k = 0; k < data0.C; k++)
-				{
-					cout << "k = " << k << endl; 
-					for (int i = 0; i < data0.H; i++)
-					{
-						for (int j = 0; j < data0.W; j++)
-						{
-							printf("%.2f ", data0.neurons[i][j][k].a); 
-						}
-						cout << endl; 
-					}
-					cout << endl; 
-				}
-				
-				cout << "deltas: " << endl; 
-				for (int k = 0; k < data0.C; k++)
-				{
-					cout << "k = " << k << endl; 
-					for (int i = 0; i < data0.H; i++)
-					{
-						for (int j = 0; j < data0.W; j++)
-						{
-							cout << data0.neurons[i][j][k].delta << " "; 
-						}
-						cout << endl; 
-					}
-					cout << endl; 
-				}
-				
-			}
-			for (int l = 7; l < 12; l++)
-			{
-				cout << "level " << l << endl; 
-				
-				Data1D data0 = *((Data1D *) data[l]); 
-				cout << "activations: " << endl; 
-				for (int i = 0; i < data0.nrNeurons; i++)
-				{
-					cout << data0.neurons[i].a << " "; 
-				}
-				cout << endl; 
-				cout << "deltas: " << endl; 
-				for (int i = 0; i < data0.nrNeurons; i++)
-				{
-					cout << data0.neurons[i].delta << " "; 
-				}
-				cout << endl; 
-			}
+			FullyConnectedLayer *layer = (FullyConnectedLayer *) layers[layerId]; 
 			
-			debugWeights(); 
+			for (int i = 0; i < layer->nrNeurOut; i++)
+			{
+				infile >> layer->biases[i]; 
+				for (int j = 0; j < layer->nrNeurIn; j++)
+				{
+					infile >> layer->weights[i][j]; 
+				}
+			}
+		}
+		
+		void readFromFile(const char *filename)
+		{
+			ifstream infile; 
+			infile.open(filename, ios_base::in); 
+			
+			readConvolutionalLayerFromFile(1, infile); 
+			readConvolutionalLayerFromFile(4, infile); 
+			readFullyConnectedLayerFromFile(8, infile); 
+			readFullyConnectedLayerFromFile(10, infile); 
+			
+			infile.close(); 
 		}
 }; 
 
@@ -1099,22 +1134,43 @@ int main()
 {
 	srand(time(NULL)); 
 	
-	int H = 28, W = 28; //image sizes
+	int H = 28, W = 28; // image sizes
 	int C = 1; 			// nr channels
 	
 	int nrClasses = 10; 
-	int nrEpochs = 1; 
-	float ratioTrainTest = 0.9; 
+	int nrEpochs = NR_EPOCHS; 
+	float ratioTrainTest = RATIO_TRAIN_TEST; 
+	Mode mode = TRAIN_AND_TEST; 
+	char *filename = "dbg1.txt"; 
+	char *filename2 = "merge.txt"; 
 	
 	ConvolutionalNeuralNetwork cnn(nrClasses, H, W, C); 
-	
-
 	DataSet dataset; 
 	
-	cout << "data read" << endl; 
-	
-	cnn.train(&dataset, nrEpochs, ratioTrainTest); 
-	cnn.test(&dataset, ratioTrainTest); 
+	if (mode == TRAIN_AND_TEST)
+	{
+		cnn.train(&dataset, nrEpochs, ratioTrainTest); 
+		cnn.test(&dataset, ratioTrainTest); 
+		cnn.writeToFile(filename2); 
+	}
+	else if (mode == TRAIN)
+	{
+		cnn.train(&dataset, nrEpochs, ratioTrainTest); 
+		cnn.writeToFile(filename2); 
+	}
+	else if (mode == TRAIN_CONTINUE)
+	{
+		cnn.readFromFile(filename); 
+		cnn.train(&dataset, nrEpochs, ratioTrainTest); 
+		cnn.writeToFile(filename2); 
+	}
+	else if (mode == TEST)
+	{
+		cnn.readFromFile(filename); 
+		cnn.test(&dataset, ratioTrainTest); 
+	}
 	
 	return 0; 
 }
+
+// Alexandru Ilinu
