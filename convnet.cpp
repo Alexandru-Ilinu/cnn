@@ -9,16 +9,20 @@
 
 using namespace std; 
 
+enum Mode { TRAIN_AND_TEST, TRAIN, TRAIN_CONTINUE, TEST };
+
 const float learningRate = 1.0f; 
 const int NR_EXAMPLES_READ = 100; 
 const int IMAGE_HEIGHT = 28; 
 const int IMAGE_WIDTH = 28; 
 const bool GRAYSCALE = true; 
 const int NR_CHANNELS = GRAYSCALE ? 1 : 3; 
+const int NR_CLASSES = 10; 
 const int NR_EPOCHS = 100; 
 const float RATIO_TRAIN_TEST = 0.9; 
-
-enum Mode { TRAIN_AND_TEST, TRAIN, TRAIN_CONTINUE, TEST };
+const Mode MODE = TRAIN_AND_TEST; 
+char *filename_out = "out.txt"; 
+char *filename_in = "in.txt"; 
 
 struct Neuron
 {
@@ -1134,40 +1138,32 @@ int main()
 {
 	srand(time(NULL)); 
 	
-	int H = 28, W = 28; // image sizes
-	int C = 1; 			// nr channels
+
 	
-	int nrClasses = 10; 
-	int nrEpochs = NR_EPOCHS; 
-	float ratioTrainTest = RATIO_TRAIN_TEST; 
-	Mode mode = TRAIN_AND_TEST; 
-	char *filename = "dbg1.txt"; 
-	char *filename2 = "merge.txt"; 
-	
-	ConvolutionalNeuralNetwork cnn(nrClasses, H, W, C); 
+	ConvolutionalNeuralNetwork cnn(NR_CLASSES, IMAGE_HEIGHT, IMAGE_WIDTH, NR_CHANNELS); 
 	DataSet dataset; 
 	
-	if (mode == TRAIN_AND_TEST)
+	if (MODE == TRAIN_AND_TEST)
 	{
-		cnn.train(&dataset, nrEpochs, ratioTrainTest); 
-		cnn.test(&dataset, ratioTrainTest); 
-		cnn.writeToFile(filename2); 
+		cnn.train(&dataset, NR_EPOCHS, RATIO_TRAIN_TEST); 
+		cnn.test(&dataset, RATIO_TRAIN_TEST); 
+		cnn.writeToFile("a.txt"); // just in case
 	}
-	else if (mode == TRAIN)
+	else if (MODE == TRAIN)
 	{
-		cnn.train(&dataset, nrEpochs, ratioTrainTest); 
-		cnn.writeToFile(filename2); 
+		cnn.train(&dataset, NR_EPOCHS, RATIO_TRAIN_TEST); 
+		cnn.writeToFile(filename_out); 
 	}
-	else if (mode == TRAIN_CONTINUE)
+	else if (MODE == TRAIN_CONTINUE)
 	{
-		cnn.readFromFile(filename); 
-		cnn.train(&dataset, nrEpochs, ratioTrainTest); 
-		cnn.writeToFile(filename2); 
+		cnn.readFromFile(filename_in); 
+		cnn.train(&dataset, NR_EPOCHS, RATIO_TRAIN_TEST); 
+		cnn.writeToFile(filename_out); 
 	}
-	else if (mode == TEST)
+	else if (MODE == TEST)
 	{
-		cnn.readFromFile(filename); 
-		cnn.test(&dataset, ratioTrainTest); 
+		cnn.readFromFile(filename_in); 
+		cnn.test(&dataset, RATIO_TRAIN_TEST); 
 	}
 	
 	return 0; 
